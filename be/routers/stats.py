@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from db.session import get_db
-from models.models import Expense, Photo, Place, Trip, User
+from models.models import ChecklistItem, Expense, Note, Photo, Place, Trip, User
 from services.deps import current_user
 
 router = APIRouter()
@@ -65,7 +65,6 @@ async def user_stats(u: User = Depends(current_user), db: AsyncSession = Depends
 @router.get("/activity", tags=["stats"])
 async def recent_activity(u: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
     """Last 20 actions across trips"""
-    from models.models import Expense, Photo, Note, ChecklistItem
     trips_r = await db.execute(select(Trip).where(Trip.owner_id == u.id))
     trips = trips_r.scalars().all()
     trip_ids = [t.id for t in trips]
@@ -100,7 +99,6 @@ async def recent_activity(u: User = Depends(current_user), db: AsyncSession = De
                 "at": p.uploaded_at.isoformat()
             })
         # Recent notes
-        from models.models import Note
         no_r = await db.execute(
             select(Note).where(Note.trip_id.in_(trip_ids))
             .order_by(Note.created_at.desc()).limit(5)

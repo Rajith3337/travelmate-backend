@@ -39,7 +39,24 @@ async def me(u: User = Depends(current_user)):
 @router.patch("/me", response_model=UserOut)
 async def update_me(body: UserUpdate, u: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
     data = body.model_dump(exclude_none=True)
-    # Handle password field inside UserUpdate (Profile page uses this path)
+    
+    # Validation against blanks and conflicts
+    if "username" in data:
+        if not data["username"].strip():
+            raise HTTPException(400, "Username cannot be empty")
+        if data["username"] != u.username:
+            ex = await db.execute(select(User).where(User.username == data["username"]))
+            if ex.scalar_one_or_none():
+                raise HTTPException(400, "Username already taken")
+                
+    if "email" in data:
+        if not data["email"].strip():
+            raise HTTPException(400, "Email cannot be empty")
+        if data["email"] != u.email:
+            ex = await db.execute(select(User).where(User.email == data["email"]))
+            if ex.scalar_one_or_none():
+                raise HTTPException(400, "Email already taken")
+                
     new_password = data.pop("password", None)
     for k, v in data.items():
         setattr(u, k, v)

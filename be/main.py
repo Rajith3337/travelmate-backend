@@ -4,12 +4,24 @@ from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from pathlib import Path
 from db.session import init_db
-from routers import auth, trips, places, expenses, photos, itinerary, ai, share, notes, checklist, stats
+from routers import auth, trips, places, expenses, photos, itinerary, ai, share, notes, checklist, stats, tracker, settings
+
+from sqlalchemy import text
+from db.session import engine
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
     Path("uploads").mkdir(exist_ok=True)
+    async with engine.begin() as session:
+        try: await session.execute(text("ALTER TABLE trips ADD COLUMN map_bbox TEXT"))
+        except: pass
+        try: await session.execute(text("ALTER TABLE trips ADD COLUMN preloaded_facilities TEXT"))
+        except: pass
+        try: await session.execute(text("ALTER TABLE trips ADD COLUMN ai_roadmap TEXT"))
+        except: pass
+        try: await session.execute(text("ALTER TABLE trips ADD COLUMN active_route TEXT"))
+        except: pass
     yield
 
 app = FastAPI(title="TravelMate API v5", lifespan=lifespan)
@@ -35,7 +47,10 @@ app.include_router(itinerary.router,  prefix="/api/v1/trips", tags=["itinerary"]
 app.include_router(notes.router,      prefix="/api/v1/trips", tags=["notes"])
 app.include_router(checklist.router,  prefix="/api/v1/trips", tags=["checklist"])
 app.include_router(ai.router,         prefix="/api/v1/ai",    tags=["ai"])
+app.include_router(share.router,      prefix="/api/v1/share", tags=["share"])
 app.include_router(stats.router,      prefix="/api/v1",       tags=["stats"])
+app.include_router(tracker.router,    prefix="/api/v1/trips", tags=["tracker"])
+app.include_router(settings.router,   prefix="/api/v1/settings", tags=["settings"])
 
 @app.get("/")
 async def root():

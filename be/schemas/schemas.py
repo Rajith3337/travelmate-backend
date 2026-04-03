@@ -77,6 +77,8 @@ class TripOut(BaseModel):
     progress: float
     map_bbox: Optional[str] = None
     preloaded_facilities: Optional[str] = None
+    ai_roadmap: Optional[str] = None
+    active_route: Optional[str] = None
     created_at: datetime
     model_config = {"from_attributes": True}
 
@@ -91,6 +93,8 @@ class TripUpdate(BaseModel):
     end_date: Optional[str] = None
     status: Optional[str] = None
     budget: Optional[float] = None
+    ai_roadmap: Optional[str] = None
+    active_route: Optional[str] = None
 
 class PlaceIn(BaseModel):
     name: str
@@ -102,6 +106,7 @@ class PlaceIn(BaseModel):
     rating: Optional[float] = None
     visit_time: Optional[str] = None
     status: str = "planned"
+    order_idx: int = 0
 
 class PlaceOut(BaseModel):
     id: int
@@ -115,6 +120,7 @@ class PlaceOut(BaseModel):
     rating: Optional[float] = None
     visit_time: Optional[str] = None
     status: str
+    order_idx: int = 0
     created_at: datetime
     model_config = {"from_attributes": True}
 
@@ -128,6 +134,7 @@ class PlaceUpdate(BaseModel):
     rating: Optional[float] = None
     visit_time: Optional[str] = None
     status: Optional[str] = None
+    order_idx: Optional[int] = None
 
 class ExpenseIn(BaseModel):
     title: str
@@ -281,3 +288,56 @@ class TripStatsOut(BaseModel):
     visited_places: int
     total_photos: int
     countries_visited: list[str]
+
+
+class TrackerSessionIn(BaseModel):
+    name: str
+    start_time: Optional[datetime] = None
+
+
+class TrackerSessionUpdate(BaseModel):
+    end_time: Optional[datetime] = None
+    total_distance: Optional[float] = None
+    duration: Optional[int] = None
+    coord_count: Optional[int] = None
+    path_json: Optional[str] = None
+
+
+class TrackerSessionOut(BaseModel):
+    id: int
+    trip_id: int
+    name: str
+    start_time: datetime
+    end_time: Optional[datetime] = None
+    total_distance: float
+    duration: int
+    coord_count: int
+    path_json: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    model_config = {"from_attributes": True}
+
+
+class TrackerPhotoOut(BaseModel):
+    id: int
+    trip_id: int
+    session_id: Optional[int] = None
+    filename: str
+    url: str
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    size_bytes: Optional[int] = None
+    captured_at: datetime
+    created_at: datetime
+    model_config = {"from_attributes": True}
+
+
+class UserSettingOut(BaseModel):
+    key: str
+    value_text: str
+    updated_at: datetime
+    model_config = {"from_attributes": True}
+
+
+class UserSettingIn(BaseModel):
+    value_text: str = ""

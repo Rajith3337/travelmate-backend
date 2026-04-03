@@ -39,11 +39,12 @@ class User(Base):
     username:        Mapped[str]      = mapped_column(String(100), unique=True, index=True)
     full_name:       Mapped[str]      = mapped_column(String(200))
     hashed_password: Mapped[str]      = mapped_column(String(255))
-    avatar_url:      Mapped[str|None] = mapped_column(String(500), nullable=True)
+    avatar_url:      Mapped[str|None] = mapped_column(Text, nullable=True)
     bio:             Mapped[str|None] = mapped_column(Text, nullable=True)
     is_active:       Mapped[bool]     = mapped_column(Boolean, default=True)
     created_at:      Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     trips: Mapped[list["Trip"]] = relationship("Trip", back_populates="owner", cascade="all, delete-orphan")
+    settings: Mapped[list["UserSetting"]] = relationship("UserSetting", back_populates="user", cascade="all, delete-orphan")
 
 
 class Trip(Base):
@@ -65,7 +66,9 @@ class Trip(Base):
     # Preloaded Caching for Backend Anticipation
     map_bbox:             Mapped[str|None] = mapped_column(Text, nullable=True) # JSON serialized
     preloaded_facilities: Mapped[str|None] = mapped_column(Text, nullable=True) # JSON serialized
-
+    ai_roadmap:           Mapped[str|None] = mapped_column(Text, nullable=True) # JSON serialized plan & insights
+    active_route:         Mapped[str|None] = mapped_column(Text, nullable=True) # JSON serialized active drawn LiveMap route
+    
     created_at:     Mapped[datetime]   = mapped_column(DateTime(timezone=True), default=now)
     updated_at:     Mapped[datetime]   = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
 
@@ -77,6 +80,8 @@ class Trip(Base):
     share_tokens:    Mapped[list["ShareToken"]]    = relationship("ShareToken",    back_populates="trip", cascade="all, delete-orphan")
     notes:           Mapped[list["Note"]]           = relationship("Note",           back_populates="trip", cascade="all, delete-orphan")
     checklist_items: Mapped[list["ChecklistItem"]]  = relationship("ChecklistItem",  back_populates="trip", cascade="all, delete-orphan")
+    tracker_sessions: Mapped[list["TrackerSession"]] = relationship("TrackerSession", back_populates="trip", cascade="all, delete-orphan")
+    tracker_photos: Mapped[list["TrackerPhoto"]] = relationship("TrackerPhoto", back_populates="trip", cascade="all, delete-orphan")
 
     @property
     def progress(self) -> float:
@@ -96,6 +101,7 @@ class Place(Base):
     rating:     Mapped[float|None]  = mapped_column(Float, nullable=True)
     visit_time: Mapped[str|None]    = mapped_column(String(20), nullable=True)
     status:     Mapped[PlaceStatus] = mapped_column(Enum(PlaceStatus), default=PlaceStatus.planned)
+    order_idx:  Mapped[int]         = mapped_column(Integer, default=0)
     created_at: Mapped[datetime]    = mapped_column(DateTime(timezone=True), default=now)
     updated_at: Mapped[datetime]    = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
     trip: Mapped["Trip"] = relationship("Trip", back_populates="places")
@@ -189,3 +195,56 @@ class ShareToken(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     trip:  Mapped["Trip"] = relationship("Trip",  back_populates="share_tokens")
     owner: Mapped["User"] = relationship("User")
+
+
+class TrackerSession(Base):
+    __tablename__ = "tracker_sessions"
+    __table_args__ = (
+        Index("ix_tracker_sessions_trip_start", "trip_id", "start_time"),
+    )
+    id:             Mapped[int]      = mapped_column(primary_key=True, index=True)
+    trip_id:        Mapped[int]      = mapped_column(ForeignKey("trips.id", ondelete="CASCADE"), index=True)
+    name:           Mapped[str]      = mapped_column(String(200))
+    start_time:     Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    end_time:       Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    total_distance: Mapped[float]    = mapped_column(Float, default=0.0)
+    duration:       Mapped[int]      = mapped_column(Integer, default=0)
+    coord_count:    Mapped[int]      = mapped_column(Integer, default=0)
+    path_json:      Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at:     Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    updated_at:     Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
+    trip: Mapped["Trip"] = relationship("Trip", back_populates="tracker_sessions")
+    photos: Mapped[list["TrackerPhoto"]] = relationship("TrackerPhoto", back_populates="session", cascade="all, delete-orphan")
+
+
+class TrackerPhoto(Base):
+    __tablename__ = "tracker_photos"
+    __table_args__ = (
+        Index("ix_tracker_photos_trip_captured", "trip_id", "captured_at"),
+    )
+    id:          Mapped[int]      = mapped_column(primary_key=True, index=True)
+    trip_id:     Mapped[int]      = mapped_column(ForeignKey("trips.id", ondelete="CASCADE"), index=True)
+    session_id:  Mapped[int | None] = mapped_column(ForeignKey("tracker_sessions.id", ondelete="SET NULL"), index=True, nullable=True)
+    filename:    Mapped[str]      = mapped_column(String(300))
+    url:         Mapped[str]      = mapped_column(String(500))
+    latitude:    Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude:   Mapped[float | None] = mapped_column(Float, nullable=True)
+    size_bytes:  Mapped[int | None] = mapped_column(Integer, nullable=True)
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    created_at:  Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    trip: Mapped["Trip"] = relationship("Trip", back_populates="tracker_photos")
+    session: Mapped["TrackerSession"] = relationship("TrackerSession", back_populates="photos")
+
+
+class UserSetting(Base):
+    __tablename__ = "user_settings"
+    __table_args__ = (
+        UniqueConstraint("user_id", "key", name="uq_user_setting_key"),
+    )
+    id:         Mapped[int]      = mapped_column(primary_key=True, index=True)
+    user_id:    Mapped[int]      = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    key:        Mapped[str]      = mapped_column(String(100), index=True)
+    value_text: Mapped[str]      = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
+    user: Mapped["User"] = relationship("User", back_populates="settings")
